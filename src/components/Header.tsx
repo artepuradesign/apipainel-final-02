@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { ShoppingCart, User, Heart, Menu, LogOut, Package, MapPin, UserCircle } from "lucide-react";
+import { ShoppingCart, User, Heart, Menu, LogOut, Package, MapPin, UserCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import SearchDropdown from "./SearchDropdown";
 import LoginModal from "./LoginModal";
+import UserMenuDropdown from "./UserMenuDropdown";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 
@@ -126,14 +127,6 @@ const Header = () => {
                   {usuario ? (
                     <div className="space-y-2">
                       <Link 
-                        to="/perfil" 
-                        className="flex items-center gap-3 px-3 py-3 text-foreground hover:bg-secondary rounded-lg transition-colors"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <UserCircle className="w-5 h-5" />
-                        Meu Perfil
-                      </Link>
-                      <Link 
                         to="/meus-pedidos" 
                         className="flex items-center gap-3 px-3 py-3 text-foreground hover:bg-secondary rounded-lg transition-colors"
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -149,6 +142,16 @@ const Header = () => {
                         <MapPin className="w-5 h-5" />
                         Endereços
                       </Link>
+                      <a 
+                        href="https://api.whatsapp.com/send?phone=5598989145930&text=Olá, preciso de ajuda!"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-3 py-3 text-foreground hover:bg-secondary rounded-lg transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <HelpCircle className="w-5 h-5" />
+                        Ajuda
+                      </a>
                       {usuario.tipo === 'admin' && (
                         <Link 
                           to="/admin/dashboard" 
@@ -198,20 +201,11 @@ const Header = () => {
             {/* Actions */}
             <div className="flex items-center gap-1 md:gap-2">
               {usuario ? (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-foreground gap-2 hidden md:flex"
-                  onClick={() => navigate(usuario.tipo === 'admin' ? '/admin/dashboard' : '/meus-pedidos')}
-                >
-                  <User className="w-5 h-5" />
-                  <span className="hidden lg:inline text-xs">
-                    Olá, {usuario.nome.split(' ')[0]}!<br />
-                    <span className="text-muted-foreground">
-                      {usuario.tipo === 'admin' ? 'Painel Admin' : 'Minha conta'}
-                    </span>
-                  </span>
-                </Button>
+                <UserMenuDropdown 
+                  userName={usuario.nome}
+                  userEmail={usuario.email}
+                  onLogout={handleLogout}
+                />
               ) : (
                 <Button 
                   variant="ghost" 

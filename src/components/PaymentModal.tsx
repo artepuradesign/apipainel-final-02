@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCart, CartItem } from "@/hooks/useCart";
+import { createPedido } from "@/services/pedidosApi";
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -88,12 +89,26 @@ const PaymentModal = ({
     }, 1500);
   };
 
-  const handleConfirmPixPayment = () => {
+  const handleConfirmPixPayment = async () => {
     const customerEmail = isLoggedIn ? userEmail : guestEmail;
-    saveOrder(customerEmail!, "pix", "payment_approved");
-    clearCart();
-    onClose();
-    navigate("/pedido-confirmado");
+    if (!customerEmail) {
+      toast.error("Por favor, informe seu email");
+      return;
+    }
+    
+    setIsProcessing(true);
+    try {
+      const orderNumber = await saveOrderToAPI(customerEmail, "pix");
+      clearCart();
+      onClose();
+      localStorage.setItem("lastOrderNumber", orderNumber);
+      navigate("/pedido-confirmado");
+    } catch (error) {
+      console.error("Erro ao salvar pedido:", error);
+      toast.error("Erro ao processar pedido. Tente novamente.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const formatCardNumber = (value: string) => {
@@ -115,7 +130,7 @@ const PaymentModal = ({
     return v;
   };
 
-  const handleCardPayment = (e: React.FormEvent) => {
+  const handleCardPayment = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isLoggedIn && !guestEmail) {
@@ -134,59 +149,48 @@ const PaymentModal = ({
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
       const customerEmail = isLoggedIn ? userEmail : guestEmail;
-      saveOrder(customerEmail!, "card", "pending_approval");
+      const orderNumber = await saveOrderToAPI(customerEmail!, "cartao");
       clearCart();
       onClose();
+      localStorage.setItem("lastOrderNumber", orderNumber);
       toast.success("Pedido enviado para aprovação!");
       navigate("/pedido-confirmado");
-    }, 2000);
+    } catch (error) {
+      console.error("Erro ao salvar pedido:", error);
+      toast.error("Erro ao processar pedido. Tente novamente.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const saveOrder = (
+  const saveOrderToAPI = async (
     email: string,
-    method: string,
-    status: string
-  ) => {
-    const orderNumber = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newOrder = {
-      id: Date.now().toString(),
-      orderNumber,
-      date: new Date().toLocaleDateString("pt-BR"),
-      status,
-      paymentMethod: method,
-      customerEmail: email,
-      total: finalTotal,
+    method: "pix" | "cartao" | "boleto"
+  ): Promise<string> => {
+    const result = await createPedido({
+      nome_cliente: cardData.name || "Cliente",
+      email_cliente: email,
       subtotal,
-      shipping,
-      discount,
-      items: cartItems.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        image: item.image,
+      desconto: discount,
+      frete: shipping,
+      total: finalTotal,
+      forma_pagamento: method,
+      itens: cartItems.map((item) => ({
+        produto_id: !isNaN(Number(item.id)) ? Number(item.id) : undefined,
+        nome: item.name,
+        sku: String(item.id),
+        imagem: item.image,
+        quantidade: item.quantity,
+        preco_unitario: item.price,
       })),
-      timeline: [
-        {
-          status: status,
-          date: new Date().toLocaleString("pt-BR"),
-          description:
-            status === "payment_approved"
-              ? "Pagamento aprovado via PIX"
-              : "Pedido aguardando aprovação",
-        },
-      ],
-    };
+    });
 
-    // Save to localStorage
-    const existingOrders = localStorage.getItem("customerOrders");
-    const orders = existingOrders ? JSON.parse(existingOrders) : [];
-    orders.unshift(newOrder);
-    localStorage.setItem("customerOrders", JSON.stringify(orders));
+    // Também salvar no localStorage para compatibilidade
     localStorage.setItem("customerEmail", email);
-    localStorage.setItem("lastOrderNumber", orderNumber);
+    
+    return result.numero;
   };
 
   return (
