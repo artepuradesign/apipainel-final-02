@@ -12,6 +12,7 @@ import Checkout from "./pages/Checkout";
 import OrderConfirmed from "./pages/OrderConfirmed";
 import MeusPedidos from "./pages/MeusPedidos";
 import AcompanharPedido from "./pages/AcompanharPedido";
+import Enderecos from "./pages/Enderecos";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/pedido-confirmado" element={<OrderConfirmed />} />
           <Route path="/meus-pedidos" element={<MeusPedidos />} />
           <Route path="/pedido/:orderNumber" element={<AcompanharPedido />} />
+          <Route path="/enderecos" element={<Enderecos />} />
           
           {/* Login unificado */}
           <Route path="/login" element={<Login />} />

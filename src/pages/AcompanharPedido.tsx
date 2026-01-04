@@ -16,75 +16,76 @@ import {
   CreditCard,
   QrCode,
   Calendar,
-  Mail
+  Mail,
+  Loader2
 } from "lucide-react";
-
-interface OrderDetails {
-  id: string;
-  orderNumber: string;
-  date: string;
-  status: string;
-  paymentMethod: string;
-  customerEmail: string;
-  total: number;
-  subtotal: number;
-  shipping: number;
-  discount: number;
-  items: {
-    name: string;
-    quantity: number;
-    price: number;
-    image: string;
-  }[];
-  timeline: {
-    status: string;
-    date: string;
-    description: string;
-  }[];
-  trackingCode?: string;
-}
+import { fetchPedidoByNumero, Pedido } from "@/services/pedidosApi";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  pending_payment: { label: "Aguardando Pagamento", color: "bg-yellow-100 text-yellow-800", icon: Clock },
-  pending_approval: { label: "Aguardando Aprovação", color: "bg-orange-100 text-orange-800", icon: Clock },
-  payment_approved: { label: "Pagamento Aprovado", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  in_preparation: { label: "Em Preparação", color: "bg-blue-100 text-blue-800", icon: Package },
-  shipped: { label: "Enviado", color: "bg-purple-100 text-purple-800", icon: Truck },
-  in_transit: { label: "Em Rota", color: "bg-indigo-100 text-indigo-800", icon: MapPin },
-  delivered: { label: "Entregue", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  cancelled: { label: "Cancelado", color: "bg-red-100 text-red-800", icon: Clock },
+  pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  pago: { label: "Pago", color: "bg-green-100 text-green-800", icon: CheckCircle },
+  preparando: { label: "Preparando", color: "bg-blue-100 text-blue-800", icon: Package },
+  enviado: { label: "Enviado", color: "bg-purple-100 text-purple-800", icon: Truck },
+  entregue: { label: "Entregue", color: "bg-green-100 text-green-800", icon: CheckCircle },
+  cancelado: { label: "Cancelado", color: "bg-red-100 text-red-800", icon: Clock },
 };
 
 const allSteps = [
-  { key: "payment_approved", label: "Pagamento Aprovado", icon: CheckCircle },
-  { key: "in_preparation", label: "Em Preparação", icon: Package },
-  { key: "shipped", label: "Enviado", icon: Truck },
-  { key: "in_transit", label: "Em Rota", icon: MapPin },
-  { key: "delivered", label: "Entregue", icon: CheckCircle },
+  { key: "pago", label: "Pagamento Aprovado", icon: CheckCircle },
+  { key: "preparando", label: "Em Preparação", icon: Package },
+  { key: "enviado", label: "Enviado", icon: Truck },
+  { key: "entregue", label: "Entregue", icon: CheckCircle },
 ];
 
 const AcompanharPedido = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
-  const [order, setOrder] = useState<OrderDetails | null>(null);
+  const [order, setOrder] = useState<Pedido | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Get order from localStorage (mock)
-    const storedOrders = localStorage.getItem("customerOrders");
-    if (storedOrders) {
-      const orders = JSON.parse(storedOrders);
-      const found = orders.find((o: OrderDetails) => o.orderNumber === orderNumber);
-      setOrder(found || null);
-    }
+    const loadOrder = async () => {
+      if (!orderNumber) return;
+      
+      setIsLoading(true);
+      try {
+        const pedido = await fetchPedidoByNumero(orderNumber);
+        setOrder(pedido);
+      } catch (error) {
+        console.error("Erro ao buscar pedido:", error);
+        setOrder(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadOrder();
   }, [orderNumber]);
 
   const formatPrice = (price: number) => {
-    return price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    return Number(price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("pt-BR");
   };
 
   const getCurrentStepIndex = () => {
     if (!order) return -1;
     return allSteps.findIndex(step => step.key === order.status);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container py-16 text-center">
+          <Loader2 className="w-12 h-12 mx-auto animate-spin text-primary" />
+          <p className="mt-4 text-muted-foreground">Carregando pedido...</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!order) {
     return (
@@ -105,7 +106,7 @@ const AcompanharPedido = () => {
     );
   }
 
-  const status = statusConfig[order.status] || statusConfig.pending_payment;
+  const status = statusConfig[order.status] || statusConfig.pendente;
   const currentStepIndex = getCurrentStepIndex();
 
   return (
@@ -129,7 +130,7 @@ const AcompanharPedido = () => {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Número do pedido</p>
-                    <h1 className="text-2xl font-bold">#{order.orderNumber}</h1>
+                    <h1 className="text-2xl font-bold">#{order.numero}</h1>
                   </div>
                   <Badge className={`${status.color} w-fit`}>
                     {status.label}
@@ -170,11 +171,6 @@ const AcompanharPedido = () => {
                             <p className={`font-medium ${isCompleted ? "" : "text-muted-foreground"}`}>
                               {step.label}
                             </p>
-                            {order.timeline?.find(t => t.status === step.key) && (
-                              <p className="text-sm text-muted-foreground">
-                                {order.timeline.find(t => t.status === step.key)?.date}
-                              </p>
-                            )}
                           </div>
                         </div>
                       );
@@ -182,10 +178,10 @@ const AcompanharPedido = () => {
                   </div>
                 </div>
 
-                {order.trackingCode && (
+                {order.codigo_rastreio && (
                   <div className="mt-6 p-4 bg-muted rounded-lg">
                     <p className="text-sm text-muted-foreground">Código de Rastreio</p>
-                    <p className="font-mono font-bold">{order.trackingCode}</p>
+                    <p className="font-mono font-bold">{order.codigo_rastreio}</p>
                   </div>
                 )}
               </CardContent>
@@ -198,21 +194,29 @@ const AcompanharPedido = () => {
               </CardHeader>
               <CardContent className="p-4 md:p-6">
                 <div className="space-y-4">
-                  {order.items.map((item, idx) => (
+                  {order.itens?.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-4">
-                      <img 
-                        src={item.image} 
-                        alt={item.name}
-                        className="w-20 h-20 object-cover rounded-lg"
-                      />
+                      <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted">
+                        {item.imagem ? (
+                          <img 
+                            src={item.imagem} 
+                            alt={item.nome}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-8 h-8 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium">{item.name}</p>
+                        <p className="font-medium">{item.nome}</p>
                         <p className="text-sm text-muted-foreground">
-                          Quantidade: {item.quantity}
+                          Quantidade: {item.quantidade}
                         </p>
                       </div>
                       <p className="font-medium shrink-0">
-                        {formatPrice(item.price * item.quantity)}
+                        {formatPrice(Number(item.preco_unitario) * item.quantidade)}
                       </p>
                     </div>
                   ))}
@@ -233,18 +237,18 @@ const AcompanharPedido = () => {
                   <Calendar className="w-5 h-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Data do Pedido</p>
-                    <p className="font-medium">{order.date}</p>
+                    <p className="font-medium">{formatDate(order.created_at)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium">{order.customerEmail}</p>
+                    <p className="font-medium">{order.email_cliente}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {order.paymentMethod === "pix" ? (
+                  {order.forma_pagamento === "pix" ? (
                     <QrCode className="w-5 h-5 text-muted-foreground" />
                   ) : (
                     <CreditCard className="w-5 h-5 text-muted-foreground" />
@@ -252,7 +256,9 @@ const AcompanharPedido = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">Pagamento</p>
                     <p className="font-medium">
-                      {order.paymentMethod === "pix" ? "PIX" : "Cartão de Crédito"}
+                      {order.forma_pagamento === "pix" ? "PIX" : 
+                       order.forma_pagamento === "cartao" ? "Cartão de Crédito" : 
+                       "Boleto"}
                     </p>
                   </div>
                 </div>
@@ -272,13 +278,13 @@ const AcompanharPedido = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Frete</span>
                   <span className="text-green-600">
-                    {order.shipping === 0 ? "Grátis" : formatPrice(order.shipping)}
+                    {Number(order.frete) === 0 ? "Grátis" : formatPrice(order.frete)}
                   </span>
                 </div>
-                {order.discount > 0 && (
+                {Number(order.desconto) > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Desconto</span>
-                    <span>-{formatPrice(order.discount)}</span>
+                    <span>-{formatPrice(order.desconto)}</span>
                   </div>
                 )}
                 <Separator />
